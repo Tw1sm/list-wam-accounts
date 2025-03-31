@@ -25,10 +25,23 @@ int ListWamAccounts() {
     __x_ABI_CWindows_CSecurity_CAuthentication_CWeb_CCore_CIWebAuthenticationCoreManagerStatics4* factory = NULL;
     hr = COMBASE$RoGetActivationFactory(hClassName, &IID_IWebAuthenticationCoreManagerStatics4, (void**)&factory);
     
+    if (FAILED(hr) || factory == NULL) {
+        internal_printf("[!] RoGetActivationFactory failed or returned NULL pointer: 0x%lx\n", hr);
+        COMBASE$RoUninitialize();
+        return 1;
+    }
+
     //internal_printf("[*] RoGetActivationFactory -> 0x%lx\n", hr);
 
     __x_ABI_CWindows_CSecurity_CAuthentication_CWeb_CCore_CIWebAuthenticationCoreManagerStatics* legacyFactory = NULL;
     hr = ((IUnknown*)factory)->lpVtbl->QueryInterface((IUnknown*)factory, &IID_IWebAuthenticationCoreManagerStatics, (void**)&legacyFactory);
+    
+    if (FAILED(hr) || legacyFactory == NULL) {
+        internal_printf("[!] QI for IWebAuthenticationCoreManagerStatics failed or returned NULL pointer: 0x%lx\n", hr);
+        factory->lpVtbl->Release(factory);
+        COMBASE$RoUninitialize();
+        return 1;
+    }
     
     //internal_printf("[*] QI for IWebAuthenticationCoreManagerStatics -> 0x%lx\n", hr);
 
@@ -89,6 +102,8 @@ int ListWamAccounts() {
             result->lpVtbl->Release(result);
         }
         asyncOp->lpVtbl->Release(asyncOp);
+        legacyFactory->lpVtbl->Release(legacyFactory);
+        factory->lpVtbl->Release(factory);
         COMBASE$RoUninitialize();
         return 1;
     }
@@ -103,45 +118,55 @@ int ListWamAccounts() {
     hr = result->lpVtbl->QueryInterface(result, &IID___x_ABI_CWindows_CSecurity_CCredentials_CIWebAccountProvider, (void**)&providerInterface);
     //internal_printf("[*] QI for CIWebAccountProvider -> 0x%lx\n", hr);
 
-    if (SUCCEEDED(hr) && providerInterface) {
-        internal_printf("[*] Got Web Account Provider interface!\n");
-
-        //
-        // Get Provider ID
-        //
-        HSTRING idStr;
-        hr = providerInterface->lpVtbl->get_Id(providerInterface, &idStr);
-        if (SUCCEEDED(hr)) {
-            UINT32 len = 0;
-            LPCWSTR raw = COMBASE$WindowsGetStringRawBuffer(idStr, &len);
-            //wprintf(L"[*] Provider Id: %.*ls\n", len, raw);
-            char* providerId = Utf16ToUtf8(raw);
-            internal_printf(" |-> Provider Id: %s\n", providerId);
-            intFree(providerId);
-            COMBASE$WindowsDeleteString(idStr);
-        } else {
-            internal_printf("[!] Failed to get Id from provider: 0x%lx\n", hr);
-        }
-
-        //
-        // Get Provider Display Name
-        //
-        HSTRING displayNameStr;
-        hr = providerInterface->lpVtbl->get_DisplayName(providerInterface, &displayNameStr);
-        if (SUCCEEDED(hr)) {
-            UINT32 len = 0;
-            LPCWSTR raw = COMBASE$WindowsGetStringRawBuffer(displayNameStr, &len);
-            //wprintf(L"[*] Provider Display Name: %.*ls\n", len, raw);
-            char* displayName = Utf16ToUtf8(raw);
-            internal_printf(" |-> Provider Display Name: %s\n", displayName);
-            intFree(displayName);
-            COMBASE$WindowsDeleteString(displayNameStr);
-        } else {
-            internal_printf("[!] Failed to get DisplayName from provider: 0x%lx\n", hr);
-        }
-
-        providerInterface->lpVtbl->Release(providerInterface);
+    if (FAILED(hr) || providerInterface == NULL) {
+        internal_printf("[!] QI for CIWebAccountProvider failed or returned NULL pointer: 0x%lx\n", hr);
+        result->lpVtbl->Release(result);
+        asyncOp->lpVtbl->Release(asyncOp);
+        legacyFactory->lpVtbl->Release(legacyFactory);
+        factory->lpVtbl->Release(factory);
+        COMBASE$RoUninitialize();
+        return 1;
     }
+
+   
+    internal_printf("[*] Got Web Account Provider interface!\n");
+
+    //
+    // Get Provider ID
+    //
+    HSTRING idStr;
+    hr = providerInterface->lpVtbl->get_Id(providerInterface, &idStr);
+    if (SUCCEEDED(hr)) {
+        UINT32 len = 0;
+        LPCWSTR raw = COMBASE$WindowsGetStringRawBuffer(idStr, &len);
+        //wprintf(L"[*] Provider Id: %.*ls\n", len, raw);
+        char* providerId = Utf16ToUtf8(raw);
+        internal_printf(" |-> Provider Id: %s\n", providerId);
+        intFree(providerId);
+        COMBASE$WindowsDeleteString(idStr);
+    } else {
+        internal_printf("[!] Failed to get Id from provider: 0x%lx\n", hr);
+    }
+
+    //
+    // Get Provider Display Name
+    //
+    HSTRING displayNameStr;
+    hr = providerInterface->lpVtbl->get_DisplayName(providerInterface, &displayNameStr);
+    if (SUCCEEDED(hr)) {
+        UINT32 len = 0;
+        LPCWSTR raw = COMBASE$WindowsGetStringRawBuffer(displayNameStr, &len);
+        //wprintf(L"[*] Provider Display Name: %.*ls\n", len, raw);
+        char* displayName = Utf16ToUtf8(raw);
+        internal_printf(" |-> Provider Display Name: %s\n", displayName);
+        intFree(displayName);
+        COMBASE$WindowsDeleteString(displayNameStr);
+    } else {
+        internal_printf("[!] Failed to get DisplayName from provider: 0x%lx\n", hr);
+    }
+
+    providerInterface->lpVtbl->Release(providerInterface);
+    
     
     //
     // Initialize a zerod-out HSTRING for the clientId to be
@@ -160,7 +185,9 @@ int ListWamAccounts() {
 
     if (FAILED(hr) || accountsAsync == NULL) {
         internal_printf("[!] FindAllAccountsWithClientIdAsync failed or returned NULL pointer: 0x%lx\n", hr);
+        result->lpVtbl->Release(result);
         asyncOp->lpVtbl->Release(asyncOp);
+        legacyFactory->lpVtbl->Release(legacyFactory);
         factory->lpVtbl->Release(factory);
         COMBASE$RoUninitialize();
         return 1;
@@ -222,6 +249,7 @@ int ListWamAccounts() {
     accountsAsync->lpVtbl->Release(accountsAsync);    
     result->lpVtbl->Release(result);
     asyncOp->lpVtbl->Release(asyncOp);
+    legacyFactory->lpVtbl->Release(legacyFactory);
     factory->lpVtbl->Release(factory);
     COMBASE$RoUninitialize();
     internal_printf("\n[*] Done!\n");
