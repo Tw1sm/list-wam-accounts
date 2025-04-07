@@ -3,6 +3,8 @@ Proof of concept BOF to interact with the WinRT WebAuthenticationCoreManager via
 
 Similar proof of concepts using C++/WinRT and .NET can be found in the `examples/` folder.
 
+Associated [blog](https://posts.specterops.io/an-operators-guide-to-device-joined-hosts-and-the-prt-cookie-bcd0db2812c4)
+
 ## BOF Usage
 The BOF does not take any args.
 ```
